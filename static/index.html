@@ -59,11 +59,9 @@
 
   if (!username) username = "Anonymous";
 
-  <script>
-  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-  const ws = new WebSocket(`${protocol}://${window.location.host}/ws`);
- </script>
-  // Color mapping
+const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+const ws = new WebSocket(`${protocol}://${window.location.host}/ws`);
+ 
   let userColors = {};
   const colors = ["#e6194b", "#3cb44b", "#ffe119", "#4363d8", "#f58231", "#911eb4", "#46f0f0", "#f032e6", "#bcf60c", "#fabebe"];
 
@@ -83,8 +81,9 @@
     let parts = msg.split(":");
     let name = parts[0];
     li.style.color = getColor(name);
-    let chat = document.getElementById("chat").appendChild(li);
-    chat.scrollTop = chat.scrollHeight; // Auto scroll to bottom
+    let chat = document.getElementById("chat");
+chat.appendChild(li);
+chat.scrollTop = chat.scrollHeight;
 };
 
 // Send message
