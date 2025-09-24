@@ -10,7 +10,7 @@ clients: list[WebSocket] = []
 
 @app.get("/")
 async def get_index():
-    path = os.path.join(os.path.dirname(__file__), "index.html")
+    path = os.path.join(os.path.dirname(__file__), "static", "index.html")
     return FileResponse(path)
 
 @app.websocket("/ws")
