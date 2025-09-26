@@ -1,27 +1,24 @@
+import json
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse
-import pathlib
+from fastapi.responses import FileResponse
 
 app = FastAPI()
+connections: list[WebSocket] = []
 
-# Serve index.html
 @app.get("/")
-async def get():
-    html = pathlib.Path("index.html").read_text()
-    return HTMLResponse(html)
-
-# Store active connections
-connections = []
+async def get_index():
+    return FileResponse("index.html")
 
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    connections.append(websocket)
+async def websocket_endpoint(ws: WebSocket):
+    await ws.accept()
+    connections.append(ws)
     try:
         while True:
-            data = await websocket.receive_text()
-            print(f"Received from client: {data}")
+            raw = await ws.receive_text()
+            data = json.loads(raw)
+            # data looks like: {"user": "moses", "text": "hello"}
             for conn in connections:
-                await conn.send_text(data)
+                await conn.send_text(json.dumps(data))
     except WebSocketDisconnect:
-        connections.remove(websocket)
+        connections.remove(ws)
