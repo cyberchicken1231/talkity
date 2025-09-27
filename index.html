@@ -2,88 +2,19 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Chat</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #1e1e2f;
-      color: #f1f1f1;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-      margin: 0;
-    }
-    #messages {
-      flex: 1;
-      padding: 10px;
-      overflow-y: auto;
-      border-bottom: 2px solid #444;
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end; /* everything right-aligned */
-    }
-    .msg {
-      margin: 5px 0;
-      padding: 6px 10px;
-      border-radius: 8px;
-      max-width: 70%;
-      text-align: left;
-      word-wrap: break-word;
-    }
-    .me {
-      background: #2d88ff;
-      color: white;
-    }
-    .other {
-      background: #444;
-      color: #ddd;
-    }
-    .username {
-      font-weight: bold;
-      margin-right: 6px;
-    }
-    .system {
-      color: #aaa;
-      font-style: italic;
-      text-align: center;
-      align-self: center;
-      background: none;
-    }
-    #input-area {
-      display: flex;
-      padding: 10px;
-      background: #2a2a3d;
-    }
-    #input {
-      flex: 1;
-      padding: 10px;
-      border: none;
-      border-radius: 8px;
-      outline: none;
-    }
-    button {
-      margin-left: 8px;
-      padding: 10px 15px;
-      border: none;
-      border-radius: 8px;
-      background: #2d88ff;
-      color: white;
-      cursor: pointer;
-    }
-    button:hover {
-      background: #1b5fcc;
-    }
-  </style>
+  <link rel="stylesheet" href="/style.css">
 </head>
 <body>
   <div id="messages"></div>
   <div id="input-area">
-    <input id="input" autocomplete="off" placeholder="Type a message..." />
-    <button id="send-btn">Send</button>
+    <input id="input" autocomplete="off" placeholder="Type a message..." aria-label="Message input" />
+    <button id="send-btn" type="button" aria-label="Send message">Send</button>
   </div>
 
   <script>
-    const username = prompt("Choose a username:") || "anon";
+  const username = prompt("Choose a username:") || "anon";
     const protocol = location.protocol === "https:" ? "wss" : "ws";
     const ws = new WebSocket(`${protocol}://${location.host}/ws`);
     const input = document.getElementById("input");
@@ -110,9 +41,11 @@
         if (msg.user === "system") {
           addMessage(msg.text, "system");
         } else {
-          addMessage(`${msg.user}: ${msg.text}`, msg.user === username ? "me" : "other", msg.user);
+          // pass raw text and user separately so rendering is consistent
+          addMessage(msg.text, msg.user === username ? "me" : "other", msg.user);
         }
-      } catch {
+      } catch (err) {
+        console.warn('Failed to parse websocket message', err);
         addMessage(event.data, "system");
       }
     };
@@ -130,7 +63,7 @@
     }
 
     input.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") sendMessage();
+      if (e.key === "Enter" && input.value.trim() !== "") sendMessage();
     });
     sendBtn.addEventListener("click", sendMessage);
 
@@ -144,14 +77,14 @@
         span.classList.add("username");
         span.style.color = getColor(user);
         span.textContent = user + ": ";
-        msg.innerHTML = "";
         msg.appendChild(span);
-        msg.appendChild(document.createTextNode(text.split(": ").slice(1).join(": ")));
+        msg.appendChild(document.createTextNode(text));
       } else {
         msg.innerText = text;
       }
 
       messages.appendChild(msg);
+      // keep scroll at bottom
       messages.scrollTop = messages.scrollHeight;
     }
   </script>
