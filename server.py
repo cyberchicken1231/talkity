@@ -6,8 +6,6 @@ from fastapi.staticfiles import StaticFiles
 app = FastAPI()
 connections: list[WebSocket] = []
 
-# Mount the static directory so /static/style.css can be served
-app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/")
 async def get_index():
