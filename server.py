@@ -1,12 +1,17 @@
 import json
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 app = FastAPI()
 connections: list[WebSocket] = []
 
+# Mount the static directory so /static/style.css can be served
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 @app.get("/")
 async def get_index():
+    # serve the index file from repository root
     return FileResponse("index.html")
 
 @app.websocket("/ws")
