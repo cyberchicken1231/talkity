@@ -7,6 +7,13 @@
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+  <div id="room-bar">
+    <label for="room-input">Room:</label>
+    <input id="room-input" placeholder="room name" aria-label="Room name" />
+    <button id="join-room" type="button">Join</button>
+    <span id="current-room" aria-live="polite"></span>
+  </div>
+
   <div id="messages"></div>
   <div id="input-area">
     <input id="input" autocomplete="off" placeholder="Type a message..." aria-label="Message input" />
@@ -16,7 +23,13 @@
   <script>
   const username = prompt("Choose a username:") || "anon";
     const protocol = location.protocol === "https:" ? "wss" : "ws";
-    const ws = new WebSocket(`${protocol}://${location.host}/ws`);
+    let ws = null;
+    let currentRoom = null;
+
+    const roomInput = document.getElementById('room-input');
+    const joinRoomBtn = document.getElementById('join-room');
+    const currentRoomLabel = document.getElementById('current-room');
+
     const input = document.getElementById("input");
     const messages = document.getElementById("messages");
     const sendBtn = document.getElementById("send-btn");
@@ -31,28 +44,51 @@
       return `hsl(${hue}, 70%, 60%)`;
     }
 
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ user: "system", text: `${username} joined the chat` }));
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.user === "system") {
-          addMessage(msg.text, "system");
-        } else {
-          // pass raw text and user separately so rendering is consistent
-          addMessage(msg.text, msg.user === username ? "me" : "other", msg.user);
-        }
-      } catch (err) {
-        console.warn('Failed to parse websocket message', err);
-        addMessage(event.data, "system");
+    function openSocketForRoom(room){
+      if (ws) {
+        try { ws.close(); } catch(e){}
+        ws = null;
       }
-    };
+      currentRoom = room;
+      currentRoomLabel.textContent = ` ${room}`;
+      ws = new WebSocket(`${protocol}://${location.host}/ws/${encodeURIComponent(room)}`);
 
-    ws.onclose = () => {
-      addMessage(`${username} left the chat`, "system");
-    };
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ user: "system", text: `${username} joined room ${room}` }));
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.user === "system") {
+            addMessage(msg.text, "system");
+          } else {
+            addMessage(msg.text, msg.user === username ? "me" : "other", msg.user);
+          }
+        } catch (err) {
+          console.warn('Failed to parse websocket message', err);
+          addMessage(event.data, "system");
+        }
+      };
+
+      ws.onclose = () => {
+        addMessage(`${username} left the chat`, "system");
+      };
+    }
+
+    // initial room prompt
+    const defaultRoom = prompt('Enter room to join (e.g. lobby)') || 'lobby';
+    roomInput.value = defaultRoom;
+    openSocketForRoom(defaultRoom);
+
+    joinRoomBtn.addEventListener('click', () => {
+      const r = roomInput.value.trim() || 'lobby';
+      if (r && r !== currentRoom) {
+        openSocketForRoom(r);
+        // clear messages when switching rooms for clarity
+        messages.innerHTML = '';
+      }
+    });
 
     function sendMessage() {
       if (input.value.trim() !== "") {
