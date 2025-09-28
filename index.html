@@ -54,7 +54,8 @@
       ws = new WebSocket(`${protocol}://${location.host}/ws/${encodeURIComponent(room)}`);
 
       ws.onopen = () => {
-        ws.send(JSON.stringify({ user: "system", text: `${username} joined room ${room}` }));
+        // send an explicit join payload so server can register this connection's username
+        ws.send(JSON.stringify({ type: 'join', user: username }));
       };
 
       ws.onmessage = (event) => {

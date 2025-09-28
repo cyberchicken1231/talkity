@@ -149,19 +149,28 @@ async def websocket_endpoint(ws: WebSocket, room: str):
             if not isinstance(data, dict):
                 continue
 
-            # client may send { "user": <name>, "text": <message> }
-            username = (data.get("user") or "")
-            if username and not entry.get("user"):
-                # set username on first appearance for this connection
-                entry["user"] = str(username)
-                # notify room that user joined
-                join_msg = {"user": "system", "text": f"{entry['user']} joined"}
-                for e in list(active_rooms.get(room, [])):
+            # handle join payloads: { type: 'join', user: 'name' }
+            if data.get("type") == "join":
+                # register the username for this connection and broadcast join to the room
+                username = (data.get("user") or "").strip()
+                if username and not entry.get("user"):
+                    entry["user"] = username
+                    # private welcome for the joining client
                     try:
-                        await e["ws"].send_text(json.dumps(join_msg))
+                        await ws.send_text(json.dumps({"user": "system", "text": f"Welcome {entry['user']} to {room}."}))
                     except Exception:
                         pass
+                    # broadcast join announcement to everyone in the room
+                    join_msg = {"user": "system", "text": f"{entry['user']} joined the room"}
+                    for e in list(active_rooms.get(room, [])):
+                        try:
+                            await e["ws"].send_text(json.dumps(join_msg))
+                        except Exception:
+                            pass
+                continue
 
+            # client may send { "user": <name>, "text": <message> }
+            username = (data.get("user") or "")
             text = (data.get("text") or "").strip()
             if not text:
                 continue
@@ -204,66 +213,105 @@ async def websocket_endpoint(ws: WebSocket, room: str):
                         await ws.send_text(json.dumps({"user": "system", "text": "Usage: >create <room-name>"}))
                         continue
                     created = create_room(room_name)
+                    # announce to admin (private) and to room as admin message if ADMIN_USERNAME is set
                     await ws.send_text(json.dumps({"user": "system", "text": f"Room '{room_name}' {'created' if created else 'already exists'}"}))
+                    # choose announcement username: prefer the admin's live username, then env var, then 'system'
+                    env_admin = os.getenv("ADMIN_USERNAME")
+                    ann_user = entry.get("user") if entry.get("is_admin") and entry.get("user") else (env_admin or "system")
+                    ann = {"user": ann_user, "text": f"Room '{room_name}' {'created' if created else 'already exists'}"}
+                    for e in list(active_rooms.get(room, [])):
+                        try:
+                            await e["ws"].send_text(json.dumps(ann))
+                        except Exception:
+                            pass
                     continue
 
                 # >warn <username> <message>
                 if cmd == "warn":
-                    warn_parts = arg.split(" ", 1)
-                    if len(warn_parts) < 1 or not warn_parts[0]:
-                        await ws.send_text(json.dumps({"user": "system", "text": "Usage: >warn <username> <message>"}))
+                        warn_parts = arg.split(" ", 1)
+                        if len(warn_parts) < 1 or not warn_parts[0].strip():
+                            await ws.send_text(json.dumps({"user": "system", "text": "Usage: >warn <username> <message>"}))
+                            continue
+                        target = warn_parts[0].strip()
+                        warn_msg = warn_parts[1].strip() if len(warn_parts) > 1 and warn_parts[1].strip() else "You have been warned by an admin"
+                        conns = active_rooms.get(room, [])
+                        found = 0
+                        target_norm = target.lower()
+                        # iterate over a copy to avoid mutation issues
+                        for e in list(conns):
+                            u = (e.get("user") or "").strip()
+                            if u.lower() == target_norm:
+                                try:
+                                    await e["ws"].send_text(json.dumps({"user": "system", "text": f"WARNING: {warn_msg}"}))
+                                    found += 1
+                                except Exception:
+                                    # If sending fails, try to close and remove the connection
+                                    try:
+                                        await e["ws"].close()
+                                    except Exception:
+                                        pass
+                                    try:
+                                        conns.remove(e)
+                                    except ValueError:
+                                        pass
+                        # confirm to the admin who issued the warn
+                        confirm_user = entry.get("user") if entry.get("is_admin") and entry.get("user") else "system"
+                        await ws.send_text(json.dumps({"user": "system", "text": f"Warned {found} connection(s) for {target}."}))
+                        # also announce to room as admin message if applicable
+                        if found:
+                            env_admin = os.getenv("ADMIN_USERNAME")
+                            ann_user = entry.get("user") if entry.get("is_admin") and entry.get("user") else (env_admin or "system")
+                            ann = {"user": ann_user, "text": f"Admin warned {target}: {warn_msg}"}
+                            for e in list(active_rooms.get(room, [])):
+                                try:
+                                    await e["ws"].send_text(json.dumps(ann))
+                                except Exception:
+                                    pass
                         continue
-                    target = warn_parts[0].strip()
-                    warn_msg = warn_parts[1] if len(warn_parts) > 1 else "You have been warned by an admin"
-                    conns = active_rooms.get(room, [])
-                    found = False
-                    target_norm = target.lower()
-                    for e in conns:
-                        u = e.get("user") or ""
-                        if u.strip().lower() == target_norm:
-                            try:
-                                await e["ws"].send_text(json.dumps({"user": "system", "text": f"WARNING: {warn_msg}"}))
-                                found = True
-                            except Exception:
-                                pass
-                    await ws.send_text(json.dumps({"user": "system", "text": f"Warned {target}: {found}"}))
-                    continue
 
                 # >kick <username> [reason]
                 if cmd == "kick":
-                    kick_parts = arg.split(" ", 1)
-                    if len(kick_parts) < 1 or not kick_parts[0]:
-                        await ws.send_text(json.dumps({"user": "system", "text": "Usage: >kick <username> <reason?>"}))
+                        kick_parts = arg.split(" ", 1)
+                        if len(kick_parts) < 1 or not kick_parts[0].strip():
+                            await ws.send_text(json.dumps({"user": "system", "text": "Usage: >kick <username> <reason?>"}))
+                            continue
+                        target = kick_parts[0].strip()
+                        reason = kick_parts[1].strip() if len(kick_parts) > 1 and kick_parts[1].strip() else "kicked by admin"
+                        conns = active_rooms.get(room, [])
+                        removed = 0
+                        target_norm = target.lower()
+                        # iterate over a copy so we can modify the original list
+                        for e in list(conns):
+                            u = (e.get("user") or "").strip()
+                            if u.lower() == target_norm:
+                                try:
+                                    # notify the target then close
+                                    await e["ws"].send_text(json.dumps({"user": "system", "text": f"KICK: {reason}"}))
+                                    await e["ws"].close()
+                                except Exception:
+                                    try:
+                                        await e["ws"].close()
+                                    except Exception:
+                                        pass
+                                # remove from the live list if present
+                                try:
+                                    conns.remove(e)
+                                except ValueError:
+                                    pass
+                                removed += 1
+                        # confirm to admin
+                        await ws.send_text(json.dumps({"user": "system", "text": f"Kicked {removed} connection(s) for {target}."}))
+                        # broadcast a room-wide announcement about the kick
+                        if removed:
+                            env_admin = os.getenv("ADMIN_USERNAME")
+                            kick_user = entry.get("user") if entry.get("is_admin") and entry.get("user") else (env_admin or "system")
+                            kick_announce = {"user": kick_user, "text": f"{target} was kicked by admin ({reason})"}
+                            for e in list(active_rooms.get(room, [])):
+                                try:
+                                    await e["ws"].send_text(json.dumps(kick_announce))
+                                except Exception:
+                                    pass
                         continue
-                    target = kick_parts[0].strip()
-                    reason = kick_parts[1] if len(kick_parts) > 1 else "kicked by admin"
-                    conns = active_rooms.get(room, [])
-                    removed = 0
-                    target_norm = target.lower()
-                    for e in list(conns):
-                        u = e.get("user") or ""
-                        if u.strip().lower() == target_norm:
-                            try:
-                                # notify the target
-                                await e["ws"].send_text(json.dumps({"user": "system", "text": f"KICK: {reason}"}))
-                                await e["ws"].close()
-                            except Exception:
-                                pass
-                            try:
-                                conns.remove(e)
-                            except ValueError:
-                                pass
-                            removed += 1
-                    # broadcast a system message that user was kicked
-                    await ws.send_text(json.dumps({"user": "system", "text": f"Kicked {removed} connections for {target}"}))
-                    if removed:
-                        kick_announce = {"user": "system", "text": f"{target} was kicked by admin ({reason})"}
-                        for e in list(active_rooms.get(room, [])):
-                            try:
-                                await e["ws"].send_text(json.dumps(kick_announce))
-                            except Exception:
-                                pass
-                    continue
 
                 await ws.send_text(json.dumps({"user": "system", "text": f"Unknown command: {cmd}"}))
                 continue
