@@ -23,10 +23,11 @@ body{
 
 #messages{
   flex:1;
-  #room-bar,#messages,#input-area{width:720px}
-  #messages{box-shadow:0 8px 30px rgba(0,0,0,0.5);border-radius:14px 14px 0 0;overflow:hidden}
-  #input-area{border-radius:0 0 14px 14px}
-  display:flex;flex-direction:column;
+  box-shadow:0 8px 30px rgba(0,0,0,0.5);
+  border-radius:14px 14px 0 0;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
   gap:8px;
 }
 

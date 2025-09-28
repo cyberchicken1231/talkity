@@ -45,7 +45,6 @@ def init_db() -> None:
 def list_rooms() -> List[str]:
     conn = get_db_connection()
     try:
-        name=name.strip().lower()
         cur = conn.execute("SELECT name FROM rooms ORDER BY name")
         return [row[0] for row in cur.fetchall()]
     finally:
@@ -54,6 +53,8 @@ def list_rooms() -> List[str]:
 
 def create_room(name: str) -> bool:
     """Create a room in the DB. Returns True if created, False if it already exists."""
+    # normalize room name
+    name = (name or "").strip().lower()
     conn = get_db_connection()
     try:
         try:
@@ -67,6 +68,8 @@ def create_room(name: str) -> bool:
 
 
 def room_exists(name: str) -> bool:
+    # normalize lookup
+    name = (name or "").strip().lower()
     conn = get_db_connection()
     try:
         cur = conn.execute("SELECT 1 FROM rooms WHERE name = ? LIMIT 1", (name,))
@@ -104,7 +107,7 @@ async def api_create_room(request: Request):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid admin token")
 
     body = await request.json()
-    name = (body.get("name") or "").strip()
+    name = (body.get("name") or "").strip().lower()
     if not name:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing room name")
 
@@ -117,7 +120,8 @@ async def api_create_room(request: Request):
 
 @app.websocket("/ws/{room}")
 async def websocket_endpoint(ws: WebSocket, room: str):
-    # ensure the room exists in persistent storage
+    # normalize requested room name and ensure it exists in persistent storage
+    room = (room or "").strip().lower()
     if not room_exists(room):
         # accept then send error and close
         await ws.accept()
