@@ -45,6 +45,7 @@ def init_db() -> None:
 def list_rooms() -> List[str]:
     conn = get_db_connection()
     try:
+        name=name.strip().lower()
         cur = conn.execute("SELECT name FROM rooms ORDER BY name")
         return [row[0] for row in cur.fetchall()]
     finally:
