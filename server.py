@@ -10,7 +10,8 @@ from fastapi.staticfiles import StaticFiles
 app = FastAPI()
 
 # in-memory active websocket connections per room
-active_rooms: dict[str, list[WebSocket]] = {}
+# each entry is a dict: {"ws": WebSocket, "user": str|None, "is_admin": bool}
+active_rooms: dict[str, list[dict]] = {}
 
 # SQLite DB file for persistent rooms
 DB_PATH = os.path.join(os.path.dirname(__file__), "data.db")
@@ -133,22 +134,136 @@ async def websocket_endpoint(ws: WebSocket, room: str):
     await ws.accept()
     if room not in active_rooms:
         active_rooms[room] = []
-    active_rooms[room].append(ws)
+    entry = {"ws": ws, "user": None, "is_admin": False}
+    active_rooms[room].append(entry)
+
     try:
         while True:
             raw = await ws.receive_text()
-            data = json.loads(raw)
-            # broadcast to everyone in the same room
+            try:
+                data = json.loads(raw)
+            except Exception:
+                # ignore malformed JSON
+                continue
+
+            if not isinstance(data, dict):
+                continue
+
+            # client may send { "user": <name>, "text": <message> }
+            username = (data.get("user") or "")
+            if username and not entry.get("user"):
+                # set username on first appearance for this connection
+                entry["user"] = str(username)
+
+            text = (data.get("text") or "").strip()
+            if not text:
+                continue
+
+            # Commands start with '>'
+            if text.startswith(">"):
+                cmd_body = text[1:].strip()
+                if not cmd_body:
+                    await ws.send_text(json.dumps({"user": "system", "text": "Empty command"}))
+                    continue
+                parts = cmd_body.split(" ", 1)
+                cmd = parts[0].lower()
+                arg = parts[1].strip() if len(parts) > 1 else ""
+
+                # >login <username> <password>
+                if cmd == "login":
+                    creds = arg.split(" ", 1)
+                    if len(creds) < 2:
+                        await ws.send_text(json.dumps({"user": "system", "text": "Usage: >login <username> <password>"}))
+                        continue
+                    uname, pwd = creds[0].strip(), creds[1].strip()
+                    ADMIN_USER = os.getenv("ADMIN_USERNAME")
+                    ADMIN_PWD = os.getenv("ADMIN_PASSWORD")
+                    if ADMIN_USER and ADMIN_PWD and uname == ADMIN_USER and pwd == ADMIN_PWD:
+                        entry["is_admin"] = True
+                        await ws.send_text(json.dumps({"user": "system", "text": "Admin privileges granted"}))
+                    else:
+                        await ws.send_text(json.dumps({"user": "system", "text": "Invalid admin credentials"}))
+                    continue
+
+                # other commands require admin
+                if not entry.get("is_admin"):
+                    await ws.send_text(json.dumps({"user": "system", "text": "Unauthorized: admin only command"}))
+                    continue
+
+                # >create <room-name>
+                if cmd == "create":
+                    room_name = arg.strip()
+                    if not room_name:
+                        await ws.send_text(json.dumps({"user": "system", "text": "Usage: >create <room-name>"}))
+                        continue
+                    created = create_room(room_name)
+                    await ws.send_text(json.dumps({"user": "system", "text": f"Room '{room_name}' {'created' if created else 'already exists'}"}))
+                    continue
+
+                # >warn <username> <message>
+                if cmd == "warn":
+                    warn_parts = arg.split(" ", 1)
+                    if len(warn_parts) < 1 or not warn_parts[0]:
+                        await ws.send_text(json.dumps({"user": "system", "text": "Usage: >warn <username> <message>"}))
+                        continue
+                    target = warn_parts[0]
+                    warn_msg = warn_parts[1] if len(warn_parts) > 1 else "You have been warned by an admin"
+                    conns = active_rooms.get(room, [])
+                    found = False
+                    for e in conns:
+                        if e.get("user") == target:
+                            try:
+                                await e["ws"].send_text(json.dumps({"user": "system", "text": f"WARNING: {warn_msg}"}))
+                                found = True
+                            except Exception:
+                                pass
+                    await ws.send_text(json.dumps({"user": "system", "text": f"Warned {target}: {found}"}))
+                    continue
+
+                # >kick <username> [reason]
+                if cmd == "kick":
+                    kick_parts = arg.split(" ", 1)
+                    if len(kick_parts) < 1 or not kick_parts[0]:
+                        await ws.send_text(json.dumps({"user": "system", "text": "Usage: >kick <username> <reason?>"}))
+                        continue
+                    target = kick_parts[0]
+                    reason = kick_parts[1] if len(kick_parts) > 1 else "kicked by admin"
+                    conns = active_rooms.get(room, [])
+                    removed = 0
+                    for e in list(conns):
+                        if e.get("user") == target:
+                            try:
+                                await e["ws"].send_text(json.dumps({"user": "system", "text": f"KICK: {reason}"}))
+                                await e["ws"].close()
+                            except Exception:
+                                pass
+                            try:
+                                conns.remove(e)
+                            except ValueError:
+                                pass
+                            removed += 1
+                    await ws.send_text(json.dumps({"user": "system", "text": f"Kicked {removed} connections for {target}"}))
+                    continue
+
+                await ws.send_text(json.dumps({"user": "system", "text": f"Unknown command: {cmd}"}))
+                continue
+
+            # regular message broadcast
+            payload = {"user": entry.get("user") or username or "anon", "text": text}
             conns = list(active_rooms.get(room, []))
-            for conn in conns:
+            for e in conns:
                 try:
-                    await conn.send_text(json.dumps(data))
+                    await e["ws"].send_text(json.dumps(payload))
                 except Exception:
-                    # ignore send errors here; cleanup will happen on disconnect
                     pass
     except WebSocketDisconnect:
-        # remove the websocket from the room list
-        if room in active_rooms and ws in active_rooms[room]:
-            active_rooms[room].remove(ws)
+        # remove the websocket entry from the room list
+        if room in active_rooms:
+            for e in list(active_rooms[room]):
+                if e.get("ws") is ws:
+                    try:
+                        active_rooms[room].remove(e)
+                    except ValueError:
+                        pass
             if not active_rooms[room]:
                 del active_rooms[room]
