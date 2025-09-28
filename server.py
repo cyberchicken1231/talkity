@@ -154,6 +154,13 @@ async def websocket_endpoint(ws: WebSocket, room: str):
             if username and not entry.get("user"):
                 # set username on first appearance for this connection
                 entry["user"] = str(username)
+                # notify room that user joined
+                join_msg = {"user": "system", "text": f"{entry['user']} joined"}
+                for e in list(active_rooms.get(room, [])):
+                    try:
+                        await e["ws"].send_text(json.dumps(join_msg))
+                    except Exception:
+                        pass
 
             text = (data.get("text") or "").strip()
             if not text:
@@ -206,12 +213,14 @@ async def websocket_endpoint(ws: WebSocket, room: str):
                     if len(warn_parts) < 1 or not warn_parts[0]:
                         await ws.send_text(json.dumps({"user": "system", "text": "Usage: >warn <username> <message>"}))
                         continue
-                    target = warn_parts[0]
+                    target = warn_parts[0].strip()
                     warn_msg = warn_parts[1] if len(warn_parts) > 1 else "You have been warned by an admin"
                     conns = active_rooms.get(room, [])
                     found = False
+                    target_norm = target.lower()
                     for e in conns:
-                        if e.get("user") == target:
+                        u = e.get("user") or ""
+                        if u.strip().lower() == target_norm:
                             try:
                                 await e["ws"].send_text(json.dumps({"user": "system", "text": f"WARNING: {warn_msg}"}))
                                 found = True
@@ -226,13 +235,16 @@ async def websocket_endpoint(ws: WebSocket, room: str):
                     if len(kick_parts) < 1 or not kick_parts[0]:
                         await ws.send_text(json.dumps({"user": "system", "text": "Usage: >kick <username> <reason?>"}))
                         continue
-                    target = kick_parts[0]
+                    target = kick_parts[0].strip()
                     reason = kick_parts[1] if len(kick_parts) > 1 else "kicked by admin"
                     conns = active_rooms.get(room, [])
                     removed = 0
+                    target_norm = target.lower()
                     for e in list(conns):
-                        if e.get("user") == target:
+                        u = e.get("user") or ""
+                        if u.strip().lower() == target_norm:
                             try:
+                                # notify the target
                                 await e["ws"].send_text(json.dumps({"user": "system", "text": f"KICK: {reason}"}))
                                 await e["ws"].close()
                             except Exception:
@@ -242,7 +254,15 @@ async def websocket_endpoint(ws: WebSocket, room: str):
                             except ValueError:
                                 pass
                             removed += 1
+                    # broadcast a system message that user was kicked
                     await ws.send_text(json.dumps({"user": "system", "text": f"Kicked {removed} connections for {target}"}))
+                    if removed:
+                        kick_announce = {"user": "system", "text": f"{target} was kicked by admin ({reason})"}
+                        for e in list(active_rooms.get(room, [])):
+                            try:
+                                await e["ws"].send_text(json.dumps(kick_announce))
+                            except Exception:
+                                pass
                     continue
 
                 await ws.send_text(json.dumps({"user": "system", "text": f"Unknown command: {cmd}"}))
