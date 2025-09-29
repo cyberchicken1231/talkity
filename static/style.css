@@ -67,6 +67,11 @@ body{
 
 .msg .username{opacity:0.95}
 
+/* Link styles inside messages */
+#messages a{color:#9ecbff;text-decoration:underline}
+#messages a:visited{color:#7fb0e8}
+#messages a:hover{text-decoration:none}
+
 #input-area{
   display:flex;gap:8px;padding:10px;background:var(--panel);
 }

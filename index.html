@@ -47,6 +47,55 @@
       return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
     }
 
+    // Convert plaintext URLs into clickable links (returns a DocumentFragment)
+    function linkify(text) {
+      const frag = document.createDocumentFragment();
+      if (!text) return frag;
+
+      // Basic URL regex: matches http(s)://..., www...., or simple email addresses
+      const urlRegex = /((https?:\/\/[^\s]+)|(www\.[^\s]+)|([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}))/g;
+
+      let lastIndex = 0;
+      let match;
+      while ((match = urlRegex.exec(text)) !== null) {
+        // add text before the match
+        if (match.index > lastIndex) {
+          frag.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+        }
+
+        const urlText = match[0];
+        let href = urlText;
+
+        // if it's an email, prefix mailto:
+        if (href.includes('@') && !href.startsWith('http') && !href.startsWith('www.')) {
+          const a = document.createElement('a');
+          a.href = `mailto:${href}`;
+          a.textContent = urlText;
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer';
+          frag.appendChild(a);
+        } else {
+          // prefix http:// for bare www. links
+          if (href.startsWith('www.')) href = 'http://' + href;
+          const a = document.createElement('a');
+          a.href = href;
+          a.textContent = urlText;
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer';
+          frag.appendChild(a);
+        }
+
+        lastIndex = urlRegex.lastIndex;
+      }
+
+      // trailing text after last match
+      if (lastIndex < text.length) {
+        frag.appendChild(document.createTextNode(text.slice(lastIndex)));
+      }
+
+      return frag;
+    }
+
     function openSocketForRoom(room){
       if (ws) {
         try { ws.close(); } catch(e){}
@@ -125,12 +174,14 @@
         span.textContent = user + ": ";
         msg.appendChild(span);
 
-        const textNode = document.createElement("span");
-        textNode.classList.add("message-text");
-        // message text should be white for everyone for improved readability
-        textNode.style.color = '#ffffff';
-        textNode.textContent = text;
-        msg.appendChild(textNode);
+  const textNode = document.createElement("span");
+  textNode.classList.add("message-text");
+  // message text should be white for everyone for improved readability
+  textNode.style.color = '#ffffff';
+  // use linkify to convert URLs into anchors safely
+  const frag = linkify(text);
+  textNode.appendChild(frag);
+  msg.appendChild(textNode);
       } else {
         msg.innerText = text;
       }
