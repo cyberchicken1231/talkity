@@ -63,10 +63,9 @@ body{
 
 .username{font-weight:600;margin-right:6px}
 
-.message-text{font-weight:400}
+.message-text{font-weight:400;color:#ffffff}
 
-.msg.me .username{opacity:0.95}
-.msg.me .message-text{color:#fff}
+.msg .username{opacity:0.95}
 
 #input-area{
   display:flex;gap:8px;padding:10px;background:var(--panel);

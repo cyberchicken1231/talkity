@@ -116,18 +116,19 @@
         const span = document.createElement("span");
         span.classList.add("username");
         const color = getColor(user);
-        span.style.color = color;
+        // username label is white for your own messages, colored for others
+        if (user === username) {
+          span.style.color = '#ffffff';
+        } else {
+          span.style.color = color;
+        }
         span.textContent = user + ": ";
         msg.appendChild(span);
 
         const textNode = document.createElement("span");
         textNode.classList.add("message-text");
-        // If this message is from the current user, render the text white for contrast
-        if (type === "me") {
-          textNode.style.color = '#ffffff';
-        } else {
-          textNode.style.color = color;
-        }
+        // message text should be white for everyone for improved readability
+        textNode.style.color = '#ffffff';
         textNode.textContent = text;
         msg.appendChild(textNode);
       } else {
