@@ -34,14 +34,17 @@
     const messages = document.getElementById("messages");
     const sendBtn = document.getElementById("send-btn");
 
-    // Generate a color based on username
+    // Generate a softer color based on username (less abrasive)
     function getColor(name) {
       let hash = 0;
       for (let i = 0; i < name.length; i++) {
         hash = name.charCodeAt(i) + ((hash << 5) - hash);
       }
-      const hue = hash % 360;
-      return `hsl(${hue}, 70%, 60%)`;
+      const hue = Math.abs(hash) % 360;
+      // softer: slightly lower saturation and a bit lighter
+      const saturation = 55; // percent
+      const lightness = 55; // percent
+      return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
     }
 
     function openSocketForRoom(room){
