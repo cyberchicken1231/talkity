@@ -115,10 +115,21 @@
       if (type !== "system" && user) {
         const span = document.createElement("span");
         span.classList.add("username");
-        span.style.color = getColor(user);
+        const color = getColor(user);
+        span.style.color = color;
         span.textContent = user + ": ";
         msg.appendChild(span);
-        msg.appendChild(document.createTextNode(text));
+
+        const textNode = document.createElement("span");
+        textNode.classList.add("message-text");
+        // If this message is from the current user, render the text white for contrast
+        if (type === "me") {
+          textNode.style.color = '#ffffff';
+        } else {
+          textNode.style.color = color;
+        }
+        textNode.textContent = text;
+        msg.appendChild(textNode);
       } else {
         msg.innerText = text;
       }
