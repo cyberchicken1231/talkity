@@ -154,6 +154,37 @@ async def websocket_endpoint(ws: WebSocket, room: str):
                 # register the username for this connection and broadcast join to the room
                 username = (data.get("user") or "").strip()
                 if username and not entry.get("user"):
+                    # enforce one user per username globally (case-insensitive)
+                    name_norm = username.strip().lower()
+                    conflict = None
+                    # scan every active connection across all rooms
+                    for r_conns in active_rooms.values():
+                        for e in r_conns:
+                            u = (e.get("user") or "").strip().lower()
+                            if u and u == name_norm:
+                                conflict = e
+                                break
+                        if conflict:
+                            break
+
+                    if conflict:
+                        # inform the joining client that the name is taken (globally) and close
+                        try:
+                            await ws.send_text(json.dumps({"user": "system", "text": f"Username '{username}' is already in use"}))
+                        except Exception:
+                            pass
+                        # remove our placeholder entry and close
+                        try:
+                            if entry in active_rooms.get(room, []):
+                                active_rooms[room].remove(entry)
+                        except Exception:
+                            pass
+                        try:
+                            await ws.close()
+                        except Exception:
+                            pass
+                        continue
+
                     entry["user"] = username
                     # private welcome for the joining client
                     try:
