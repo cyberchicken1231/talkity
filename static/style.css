@@ -72,6 +72,11 @@ body{
 #messages a:visited{color:#7fb0e8}
 #messages a:hover{text-decoration:none}
 
+/* Ensure links inside message-text are visible even when parent text is white */
+.message-text a{color:#9ecbff !important;text-decoration:underline;cursor:pointer;word-break:break-word}
+.message-text a:visited{color:#7fb0e8 !important}
+.message-text a:hover{text-decoration:none}
+
 #input-area{
   display:flex;gap:8px;padding:10px;background:var(--panel);
 }
