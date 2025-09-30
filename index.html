@@ -48,55 +48,70 @@
     }
 
     // Convert plaintext URLs into clickable links (returns a DocumentFragment)
+    // Supports: http(s)://..., www.example.com, example.com, and emails
     function linkify(text) {
       const frag = document.createDocumentFragment();
       if (!text) return frag;
 
-      // Basic URL regex: matches http(s)://..., www...., or simple email addresses
-      const urlRegex = /((https?:\/\/[^\s]+)|(www\.[^\s]+)|([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}))/g;
+      // URL regex now also matches bare domains like example.com (with optional path)
+      const urlRegex = /((?:https?:\/\/)[^\s]+|www\.[^\s]+|[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:\/\S*)?|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})/g;
 
       let lastIndex = 0;
       let match;
       while ((match = urlRegex.exec(text)) !== null) {
-        // add text before the match
         if (match.index > lastIndex) {
           frag.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
         }
 
-        const urlText = match[0];
-        let href = urlText;
+        let urlText = match[0];
 
-        // if it's an email, prefix mailto:
-        if (href.includes('@') && !href.startsWith('http') && !href.startsWith('www.')) {
+        // Trim trailing punctuation commonly attached to sentences
+        let trailing = '';
+        while (/[\.\,;:\!?\)\]\}]+$/.test(urlText)) {
+          trailing = urlText.slice(-1) + trailing;
+          urlText = urlText.slice(0, -1);
+        }
+
+        // Determine type: email vs url/domain
+        const isEmail = urlText.includes('@') && !urlText.startsWith('http') && !urlText.startsWith('www.');
+
+        if (isEmail) {
           const a = document.createElement('a');
-          a.href = `mailto:${href}`;
+          a.href = `mailto:${urlText}`;
           a.textContent = urlText;
           a.target = '_blank';
           a.rel = 'noopener noreferrer';
-          // inline styles to ensure visibility and clickability
           a.style.color = '#9ecbff';
           a.style.cursor = 'pointer';
           a.style.textDecoration = 'underline';
           frag.appendChild(a);
         } else {
-          // prefix http:// for bare www. links
-          if (href.startsWith('www.')) href = 'http://' + href;
+          let href = urlText;
+          // If bare domain (no protocol and no www), prefix http://
+          if (!href.startsWith('http') && !href.startsWith('www.')) {
+            // crude check for domain-like pattern
+            if (/\.[A-Za-z]{2,}/.test(href)) {
+              href = 'http://' + href;
+            }
+          } else if (href.startsWith('www.')) {
+            href = 'http://' + href;
+          }
+
           const a = document.createElement('a');
           a.href = href;
           a.textContent = urlText;
           a.target = '_blank';
           a.rel = 'noopener noreferrer';
-          // inline styles to ensure visibility and clickability
           a.style.color = '#9ecbff';
           a.style.cursor = 'pointer';
           a.style.textDecoration = 'underline';
           frag.appendChild(a);
         }
 
+        if (trailing) frag.appendChild(document.createTextNode(trailing));
         lastIndex = urlRegex.lastIndex;
       }
 
-      // trailing text after last match
       if (lastIndex < text.length) {
         frag.appendChild(document.createTextNode(text.slice(lastIndex)));
       }
