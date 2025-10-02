@@ -14,10 +14,7 @@
     <span id="current-room" aria-live="polite"></span>
   </div>
 
-  <div class="chat-wrap">
-    <div id="messages"></div>
-    <div id="user-list" aria-live="polite" aria-label="Online users"></div>
-  </div>
+  <div id="messages"></div>
   <div id="input-area">
     <input id="input" autocomplete="off" placeholder="Type a message..." aria-label="Message input" />
     <button id="send-btn" type="button" aria-label="Send message">Send</button>
@@ -51,70 +48,55 @@
     }
 
     // Convert plaintext URLs into clickable links (returns a DocumentFragment)
-    // Supports: http(s)://..., www.example.com, example.com, and emails
     function linkify(text) {
       const frag = document.createDocumentFragment();
       if (!text) return frag;
 
-      // URL regex now also matches bare domains like example.com (with optional path)
-      const urlRegex = /((?:https?:\/\/)[^\s]+|www\.[^\s]+|[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:\/\S*)?|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})/g;
+      // Basic URL regex: matches http(s)://..., www...., or simple email addresses
+      const urlRegex = /((https?:\/\/[^\s]+)|(www\.[^\s]+)|([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}))/g;
 
       let lastIndex = 0;
       let match;
       while ((match = urlRegex.exec(text)) !== null) {
+        // add text before the match
         if (match.index > lastIndex) {
           frag.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
         }
 
-        let urlText = match[0];
+        const urlText = match[0];
+        let href = urlText;
 
-        // Trim trailing punctuation commonly attached to sentences
-        let trailing = '';
-        while (/[\.\,;:\!?\)\]\}]+$/.test(urlText)) {
-          trailing = urlText.slice(-1) + trailing;
-          urlText = urlText.slice(0, -1);
-        }
-
-        // Determine type: email vs url/domain
-        const isEmail = urlText.includes('@') && !urlText.startsWith('http') && !urlText.startsWith('www.');
-
-        if (isEmail) {
+        // if it's an email, prefix mailto:
+        if (href.includes('@') && !href.startsWith('http') && !href.startsWith('www.')) {
           const a = document.createElement('a');
-          a.href = `mailto:${urlText}`;
+          a.href = `mailto:${href}`;
           a.textContent = urlText;
           a.target = '_blank';
           a.rel = 'noopener noreferrer';
+          // inline styles to ensure visibility and clickability
           a.style.color = '#9ecbff';
           a.style.cursor = 'pointer';
           a.style.textDecoration = 'underline';
           frag.appendChild(a);
         } else {
-          let href = urlText;
-          // If bare domain (no protocol and no www), prefix http://
-          if (!href.startsWith('http') && !href.startsWith('www.')) {
-            // crude check for domain-like pattern
-            if (/\.[A-Za-z]{2,}/.test(href)) {
-              href = 'http://' + href;
-            }
-          } else if (href.startsWith('www.')) {
-            href = 'http://' + href;
-          }
-
+          // prefix http:// for bare www. links
+          if (href.startsWith('www.')) href = 'http://' + href;
           const a = document.createElement('a');
           a.href = href;
           a.textContent = urlText;
           a.target = '_blank';
           a.rel = 'noopener noreferrer';
+          // inline styles to ensure visibility and clickability
           a.style.color = '#9ecbff';
           a.style.cursor = 'pointer';
           a.style.textDecoration = 'underline';
           frag.appendChild(a);
         }
 
-        if (trailing) frag.appendChild(document.createTextNode(trailing));
         lastIndex = urlRegex.lastIndex;
       }
 
+      // trailing text after last match
       if (lastIndex < text.length) {
         frag.appendChild(document.createTextNode(text.slice(lastIndex)));
       }
@@ -139,11 +121,6 @@
       ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);
-          // server-sent user list update
-          if (msg && msg.type === 'users' && Array.isArray(msg.users)) {
-            renderUserList(msg.users);
-            return;
-          }
           if (msg.user === "system") {
             addMessage(msg.text, "system");
           } else {
@@ -220,42 +197,6 @@
       messages.appendChild(msg);
       // keep scroll at bottom
       messages.scrollTop = messages.scrollHeight;
-    }
-
-    // Render the online users list into #user-list
-    function renderUserList(users) {
-      const list = document.getElementById('user-list');
-      if (!list) return;
-      list.innerHTML = '';
-      const title = document.createElement('div');
-      title.textContent = 'Online';
-      title.style.fontWeight = '700';
-      title.style.marginBottom = '6px';
-      list.appendChild(title);
-      if (!users || users.length === 0) {
-        const empty = document.createElement('div');
-        empty.textContent = 'No users';
-        empty.style.color = '#999';
-        list.appendChild(empty);
-        return;
-      }
-      const ul = document.createElement('ul');
-      ul.style.listStyle = 'none';
-      ul.style.padding = '0';
-      ul.style.margin = '0';
-      users.forEach(u => {
-        const li = document.createElement('li');
-        li.textContent = u === username ? (u + ' (you)') : u;
-        li.style.padding = '4px 0';
-        li.style.fontWeight = u === username ? '700' : '500';
-        if (u !== username) {
-          li.style.color = getColor(u);
-        } else {
-          li.style.color = '#fff';
-        }
-        ul.appendChild(li);
-      });
-      list.appendChild(ul);
     }
   </script>
 </body>

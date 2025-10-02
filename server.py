@@ -204,7 +204,7 @@ async def websocket_endpoint(ws: WebSocket, room: str):
                     entry["user"] = username
                     # private welcome for the joining client
                     try:
-                        await ws.send_text(json.dumps({"user": "system", "text": f"Welcome {entry['user']} to {room}."}))
+                        await ws.send_text(json.dumps({"user": "system", "text": f"{entry['user']} Welcome to the room {room}."}))
                     except Exception:
                         pass
                     # broadcast join announcement to everyone in the room
