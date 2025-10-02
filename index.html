@@ -14,7 +14,10 @@
     <span id="current-room" aria-live="polite"></span>
   </div>
 
-  <div id="messages"></div>
+  <div class="chat-wrap">
+    <div id="messages"></div>
+    <div id="user-list" aria-live="polite" aria-label="Online users"></div>
+  </div>
   <div id="input-area">
     <input id="input" autocomplete="off" placeholder="Type a message..." aria-label="Message input" />
     <button id="send-btn" type="button" aria-label="Send message">Send</button>
@@ -136,6 +139,11 @@
       ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);
+          // server-sent user list update
+          if (msg && msg.type === 'users' && Array.isArray(msg.users)) {
+            renderUserList(msg.users);
+            return;
+          }
           if (msg.user === "system") {
             addMessage(msg.text, "system");
           } else {
@@ -212,6 +220,42 @@
       messages.appendChild(msg);
       // keep scroll at bottom
       messages.scrollTop = messages.scrollHeight;
+    }
+
+    // Render the online users list into #user-list
+    function renderUserList(users) {
+      const list = document.getElementById('user-list');
+      if (!list) return;
+      list.innerHTML = '';
+      const title = document.createElement('div');
+      title.textContent = 'Online';
+      title.style.fontWeight = '700';
+      title.style.marginBottom = '6px';
+      list.appendChild(title);
+      if (!users || users.length === 0) {
+        const empty = document.createElement('div');
+        empty.textContent = 'No users';
+        empty.style.color = '#999';
+        list.appendChild(empty);
+        return;
+      }
+      const ul = document.createElement('ul');
+      ul.style.listStyle = 'none';
+      ul.style.padding = '0';
+      ul.style.margin = '0';
+      users.forEach(u => {
+        const li = document.createElement('li');
+        li.textContent = u === username ? (u + ' (you)') : u;
+        li.style.padding = '4px 0';
+        li.style.fontWeight = u === username ? '700' : '500';
+        if (u !== username) {
+          li.style.color = getColor(u);
+        } else {
+          li.style.color = '#fff';
+        }
+        ul.appendChild(li);
+      });
+      list.appendChild(ul);
     }
   </script>
 </body>

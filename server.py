@@ -137,6 +137,22 @@ async def websocket_endpoint(ws: WebSocket, room: str):
     entry = {"ws": ws, "user": None, "is_admin": False}
     active_rooms[room].append(entry)
 
+    async def broadcast_user_list(r: str):
+        # build a list of usernames currently active in room r
+        conns = active_rooms.get(r, [])
+        users = []
+        for e in conns:
+            name = (e.get("user") or "").strip()
+            if not name:
+                continue
+            users.append({"name": name, "is_admin": bool(e.get("is_admin"))})
+        payload = {"type": "users", "users": users}
+        for e in list(conns):
+            try:
+                await e["ws"].send_text(json.dumps(payload))
+            except Exception:
+                pass
+
     try:
         while True:
             raw = await ws.receive_text()
@@ -198,6 +214,11 @@ async def websocket_endpoint(ws: WebSocket, room: str):
                             await e["ws"].send_text(json.dumps(join_msg))
                         except Exception:
                             pass
+                    # broadcast updated user list to the room
+                    try:
+                        await broadcast_user_list(room)
+                    except Exception:
+                        pass
                 continue
 
             # client may send { "user": <name>, "text": <message> }
@@ -285,6 +306,11 @@ async def websocket_endpoint(ws: WebSocket, room: str):
                                         conns.remove(e)
                                     except ValueError:
                                         pass
+                        # after potential removals, broadcast updated user list
+                        try:
+                            await broadcast_user_list(room)
+                        except Exception:
+                            pass
                         # confirm to the admin who issued the warn
                         confirm_user = entry.get("user") if entry.get("is_admin") and entry.get("user") else "system"
                         await ws.send_text(json.dumps({"user": "system", "text": f"Warned {found} connection(s) for {target}."}))
@@ -342,6 +368,11 @@ async def websocket_endpoint(ws: WebSocket, room: str):
                                     await e["ws"].send_text(json.dumps(kick_announce))
                                 except Exception:
                                     pass
+                            # broadcast updated user list now that targets were removed
+                            try:
+                                await broadcast_user_list(room)
+                            except Exception:
+                                pass
                         continue
 
                 await ws.send_text(json.dumps({"user": "system", "text": f"Unknown command: {cmd}"}))

@@ -31,6 +31,15 @@ body{
   gap:8px;
 }
 
+/* User list panel */
+#user-list{
+  background:transparent;
+  color:var(--muted);
+  padding:8px 12px;
+  font-size:14px;
+  border-top:1px solid rgba(255,255,255,0.02);
+}
+
 .msg{
   max-width:85%;
   padding:10px 12px;
@@ -94,14 +103,18 @@ input,button{touch-action:manipulation}
 /* Desktop and larger screens */
 @media (min-width:800px){
   body{align-items:center;padding:28px}
-  #messages{width:720px;box-shadow:0 8px 30px rgba(0,0,0,0.5);border-radius:14px;overflow:hidden}
-  #input-area{width:720px;border-radius:0 0 14px 14px}
+  /* layout: messages + userlist side-by-side on desktop */
+  .chat-wrap{display:flex;gap:16px;align-items:flex-start}
+  #messages{width:640px;box-shadow:0 8px 30px rgba(0,0,0,0.5);border-radius:14px;overflow:hidden}
+  #user-list{width:200px;align-self:flex-start;background:var(--panel);border-radius:10px;padding:12px}
+  #input-area{width:640px;border-radius:0 0 14px 14px}
   #input{font-size:15px}
 }
 
 @media (min-width:1100px){
-  #messages{width:980px}
-  #input-area{width:980px}
+  #messages{width:820px}
+  #input-area{width:820px}
+  #user-list{width:260px}
 }
 
 /* Accessibility helpers */
