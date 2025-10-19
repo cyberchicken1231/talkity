@@ -85,7 +85,7 @@ def on_startup():
 
 
 @app.get("/")
-async def get_index():
+def get_index():
     # serve the index file from repository root
     return FileResponse("index.html")
 

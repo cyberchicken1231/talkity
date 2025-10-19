@@ -121,14 +121,21 @@
       ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);
-          if (msg.user === "system") {
-            addMessage(msg.text, "system");
-          } else {
-            addMessage(msg.text, msg.user === username ? "me" : "other", msg.user);
+            // Ignore messages without a 'text' property (prevents showing 'undefined')
+            if (typeof msg.text !== 'string') {
+              // unknown payload - ignore silently
+              return;
+            }
+            if (msg.user === "system") {
+              addMessage(msg.text, "system");
+            } else {
+              const who = msg.user || 'anon';
+              addMessage(msg.text, who === username ? "me" : "other", who);
           }
         } catch (err) {
           console.warn('Failed to parse websocket message', err);
-          addMessage(event.data, "system");
+            // if the raw data is a plain string, show it as system text
+            if (typeof event.data === 'string') addMessage(event.data, "system");
         }
       };
 
