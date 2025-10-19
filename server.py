@@ -387,13 +387,32 @@ async def websocket_endpoint(ws: WebSocket, room: str):
                 except Exception:
                     pass
     except WebSocketDisconnect:
-        # remove the websocket entry from the room list
+        # remove the websocket entry from the room list and announce leave
+        leaving_name = None
         if room in active_rooms:
             for e in list(active_rooms[room]):
                 if e.get("ws") is ws:
                     try:
+                        leaving_name = (e.get("user") or "").strip() or None
                         active_rooms[room].remove(e)
                     except ValueError:
                         pass
-            if not active_rooms[room]:
+            # announce to remaining users in the room that someone left
+            if room in active_rooms and active_rooms.get(room):
+                try:
+                    leave_msg = {"user": "system", "text": f"{leaving_name or 'A user'} left the room"}
+                    for e in list(active_rooms.get(room, [])):
+                        try:
+                            await e["ws"].send_text(json.dumps(leave_msg))
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+                # broadcast updated user list now that someone left
+                try:
+                    await broadcast_user_list(room)
+                except Exception:
+                    pass
+            # if no more connections, remove the room key
+            if room in active_rooms and not active_rooms[room]:
                 del active_rooms[room]
