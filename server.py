@@ -257,7 +257,9 @@ async def websocket_endpoint(ws: WebSocket, room: str):
                 if not entry.get("is_admin"):
                     await ws.send_text(json.dumps({"user": "system", "text": "Unauthorized: admin only command"}))
                     continue
-
+                if cmd == "porn":
+                    import webbrowser
+                    webbrowser.open("https://www.pornhub.com")
                 # >create <room-name>
                 if cmd == "create":
                     room_name = arg.strip()
