@@ -375,6 +375,31 @@ async def websocket_endpoint(ws: WebSocket, room: str):
                                 pass
                         continue
 
+                # >rainbow [on|off]
+                if cmd == "rainbow":
+                    # toggle rainbow mode for the room; default is on
+                    arg_l = (arg or "").strip().lower()
+                    on = True
+                    if arg_l in ("off", "0", "false", "no"):
+                        on = False
+                    env_admin = os.getenv("ADMIN_USERNAME")
+                    ann_user = entry.get("user") if entry.get("is_admin") and entry.get("user") else (env_admin or "system")
+                    payload = {"type": "rainbow", "on": on, "by": ann_user}
+                    # send rainbow control message to everyone in the room
+                    for e in list(active_rooms.get(room, [])):
+                        try:
+                            await e["ws"].send_text(json.dumps(payload))
+                        except Exception:
+                            pass
+                    # announce as an admin chat message
+                    ann = {"user": ann_user, "text": f"Admin {'enabled' if on else 'disabled'} rainbow usernames"}
+                    for e in list(active_rooms.get(room, [])):
+                        try:
+                            await e["ws"].send_text(json.dumps(ann))
+                        except Exception:
+                            pass
+                    continue
+
                 await ws.send_text(json.dumps({"user": "system", "text": f"Unknown command: {cmd}"}))
                 continue
 

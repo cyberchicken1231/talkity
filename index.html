@@ -23,8 +23,10 @@
   <script>
   const username = prompt("Choose a username:") || "anon";
     const protocol = location.protocol === "https:" ? "wss" : "ws";
-    let ws = null;
-    let currentRoom = null;
+  let ws = null;
+  let currentRoom = null;
+  // client state for rainbow mode
+  let rainbowMode = false;
 
     const roomInput = document.getElementById('room-input');
     const joinRoomBtn = document.getElementById('join-room');
@@ -121,20 +123,29 @@
       ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);
-            // ignore messages without a text field (but allow system/user messages with text)
-            if (!('text' in msg)) {
-              return;
-            }
-            const text = msg.text || '';
-            if (msg.user === "system") {
-              addMessage(text, "system");
-            } else {
-              addMessage(text, msg.user === username ? "me" : "other", msg.user);
+          // rainbow control message from server
+          if (msg && msg.type === 'rainbow') {
+            rainbowMode = !!msg.on;
+            // apply or remove rainbow class on all existing username spans
+            document.querySelectorAll('.username').forEach(sp => {
+              if (rainbowMode) sp.classList.add('rainbow'); else sp.classList.remove('rainbow');
+            });
+            return;
+          }
+          // ignore messages without a text field (but allow system/user messages with text)
+          if (!('text' in msg)) {
+            return;
+          }
+          const text = msg.text || '';
+          if (msg.user === "system") {
+            addMessage(text, "system");
+          } else {
+            addMessage(text, msg.user === username ? "me" : "other", msg.user);
           }
         } catch (err) {
           console.warn('Failed to parse websocket message', err);
-            // if the raw data is a plain string, show it as system text
-            if (typeof event.data === 'string') addMessage(event.data, "system");
+          // if the raw data is a plain string, show it as system text
+          if (typeof event.data === 'string') addMessage(event.data, "system");
         }
       };
 
@@ -176,8 +187,9 @@
       if (type) msg.classList.add(type);
 
       if (type !== "system" && user) {
-        const span = document.createElement("span");
-        span.classList.add("username");
+  const span = document.createElement("span");
+  span.classList.add("username");
+  if (rainbowMode) span.classList.add('rainbow');
         const color = getColor(user);
         // username label is white for your own messages, colored for others
         if (user === username) {

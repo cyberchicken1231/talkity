@@ -90,6 +90,22 @@ body{
   display:flex;gap:8px;padding:10px;background:var(--panel);
 }
 
+/* Rainbow username effect */
+.rainbow{
+  background: linear-gradient(90deg, #ff3cac, #784ba0, #2b86c5, #28d9a3, #ffe66d);
+  background-size: 400% 400%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: rainbow 6s linear infinite;
+}
+
+@keyframes rainbow{
+  0%{background-position:0% 50%}
+  50%{background-position:100% 50%}
+  100%{background-position:0% 50%}
+}
+
 #input{
   flex:1;padding:12px;border-radius:10px;border:none;outline:none;background:#11131a;color:inherit;font-size:16px
 }
