@@ -1,6 +1,7 @@
 import json
 import os
 import sqlite3
+import webbrowser
 from typing import List
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request, status
@@ -257,9 +258,7 @@ async def websocket_endpoint(ws: WebSocket, room: str):
                 if not entry.get("is_admin"):
                     await ws.send_text(json.dumps({"user": "system", "text": "Unauthorized: admin only command"}))
                     continue
-                if cmd == "porn":
-                    import webbrowser
-                    webbrowser.open("https://www.pornhub.com")
+
                 # >create <room-name>
                 if cmd == "create":
                     room_name = arg.strip()
@@ -400,6 +399,61 @@ async def websocket_endpoint(ws: WebSocket, room: str):
                             await e["ws"].send_text(json.dumps(ann))
                         except Exception:
                             pass
+                    continue
+
+                # >open <url> <username>
+                if cmd == "open":
+                    # syntax check
+                    parts_open = arg.split(" ", 1)
+                    if len(parts_open) < 2 or not parts_open[0].strip() or not parts_open[1].strip():
+                        await ws.send_text(json.dumps({"user": "system", "text": "Usage: >open <url> <username>"}))
+                        continue
+                    url_raw = parts_open[0].strip()
+                    target = parts_open[1].strip()
+                    # normalize URL (add scheme if missing)
+                    if not url_raw.startswith(("http://", "https://")):
+                        url = "http://" + url_raw
+                    else:
+                        url = url_raw
+                    conns = active_rooms.get(room, [])
+                    targeted = 0
+                    target_norm = target.lower()
+                    env_admin = os.getenv("ADMIN_USERNAME")
+                    ann_user = entry.get("user") if entry.get("is_admin") and entry.get("user") else (env_admin or "system")
+                    # iterate over a copy so we can safely modify
+                    for e in list(conns):
+                        u = (e.get("user") or "").strip()
+                        if u and u.lower() == target_norm:
+                            try:
+                                # instruct the client to open the URL
+                                await e["ws"].send_text(json.dumps({"type": "open", "url": url, "by": ann_user}))
+                                targeted += 1
+                            except Exception:
+                                # if send fails, attempt to close and remove
+                                try:
+                                    await e["ws"].close()
+                                except Exception:
+                                    pass
+                                try:
+                                    conns.remove(e)
+                                except ValueError:
+                                    pass
+                    # attempt to open on server as well (per request to use webbrowser)
+                    try:
+                        if targeted:
+                            webbrowser.open(url, new=2)
+                    except Exception:
+                        pass
+                    # confirm to admin
+                    await ws.send_text(json.dumps({"user": "system", "text": f"Open request sent to {targeted} connection(s) for {target}."}))
+                    # announce to room as admin message if any targeted
+                    if targeted:
+                        ann = {"user": ann_user, "text": f"Admin opened {url} for {target}"}
+                        for e in list(active_rooms.get(room, [])):
+                            try:
+                                await e["ws"].send_text(json.dumps(ann))
+                            except Exception:
+                                pass
                     continue
 
                 await ws.send_text(json.dumps({"user": "system", "text": f"Unknown command: {cmd}"}))

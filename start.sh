@@ -11,7 +11,7 @@ init_db()
 created = create_room("lobby")
 print("lobby ensured (created=" + str(created) + ")")
 PY
-
+exec sudo cowsay hi
 # Start the server on the port Render provides (default to 8000 if not set)
 # --proxy-headers helps when behind a proxy/load balancer
 exec uvicorn server:app --host 0.0.0.0 --port "${PORT:-8000}" --proxy-headers
