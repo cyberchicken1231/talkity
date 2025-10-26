@@ -425,8 +425,10 @@ async def websocket_endpoint(ws: WebSocket, room: str):
                         u = (e.get("user") or "").strip()
                         if u and u.lower() == target_norm:
                             try:
-                                # instruct the client to open the URL
+                                # instruct the client to open the URL (special payload)
                                 await e["ws"].send_text(json.dumps({"type": "open", "url": url, "by": ann_user}))
+                                # also send a regular chat/system message so clients that only render chat will show it
+                                await e["ws"].send_text(json.dumps({"user": "system", "text": f"Please open: {url} (requested by {ann_user})"}))
                                 targeted += 1
                             except Exception:
                                 # if send fails, attempt to close and remove
